@@ -1,22 +1,24 @@
 #!/usr/bin/python3
 
-class Map:
+dirs = [(0,-1), (1,0), (0,1), (-1,0)]
 
+class Map:
     def __init__(self, inp):
         map = inp.split('\n')
 
         self.height = len(map)
         self.width = len(map[0])
 
-        self.walls = set()
-        for y, line in enumerate(map):
-            for x, cell in enumerate(line):
-                if cell == '#':
-                    self.walls.add( (x,y) )
-                elif cell in '^v<>':
-                    self.guard = cell
-                    self.pos = (x,y)
-                    self.start = (self.guard, self.pos)
+        cells = {(x, y): cell
+                    for y, line in enumerate(map)
+                    for x, cell in enumerate(line)
+                }
+
+        self.pos = [pos for pos in cells if cells[pos] == '^'][0]
+        self.walls = frozenset(pos for pos in cells if cells[pos] == '#')
+        self.guard = 0
+        self.start = (self.guard, self.pos)
+        self.added = (-1,-1)
 
     def reset(self):
         self.guard, self.pos = self.start
@@ -26,41 +28,22 @@ class Map:
         return x >= 0 and x < self.width and y >= 0 and y < self.height
 
     def turn_right(self):
-        if self.guard == '^':
-            self.guard = '>'
-        elif self.guard == '>':
-            self.guard = 'v'
-        elif self.guard == 'v':
-            self.guard = '<'
-        elif self.guard == '<':
-            self.guard = '^'
-        else:
-            assert(False)
+        self.guard = (self.guard + 1) % 4
 
     def next_pos(self):
         x,y = self.pos
-        if self.guard == '^':
-            y -= 1
-        elif self.guard == 'v':
-            y += 1
-        elif self.guard == '<':
-            x -= 1
-        elif self.guard == '>':
-            x += 1
-        return (x,y)
+        dx,dy = dirs[self.guard]
+        return (x + dx, y + dy)
 
+    def blocked(self, pos):
+        return pos in self.walls or pos == self.added
 
     def move(self):
         pos = self.next_pos()
-        while pos in self.walls:
+        while self.blocked(pos):
             self.turn_right()
             pos = self.next_pos()
-
         self.pos = pos
-
-
-    def __str__(self):
-        return f"Map(walls={self.walls}, guard={self.guard}, pos={self.pos}, height={self.height}, width={self.width})"
 
     def path(self):
         while self.valid():
@@ -77,37 +60,24 @@ class Map:
             self.move()
         return False
 
-    def open_cells(self):
-        for y in range(self.height):
-            for x in range(self.width):
-                if (x,y) not in self.walls and (x,y) != self.pos:
-                    yield (x,y)
-
     def add(self, pos):
-        self.walls.add(pos)
-
-    def remove(self, pos):
-        self.walls.remove(pos)
-
+        self.added = pos
 
 def part2(map):
     count = 0
     map.reset()
-    possible = set([p for p in map.path()])
+    possible = frozenset([p for p in map.path()])
     map.reset()
-    possible.remove(map.pos)
+    possible = possible - frozenset([map.pos])
     for pos in possible:
-        # print(f"Obstruction {pos}")
         map.add(pos)
         if map.loops():
             count += 1
-        map.remove(pos)
         map.reset()
     print("Part2: ", count)
 
-def solve(map):
+def part1(map):
     path = set([p for p in map.path()])
-
     print("Part1: ", len(path))
 
 def sample():
@@ -125,15 +95,14 @@ def sample():
 def play():
     map = Map(sample())
 
-
-    solve( map )
+    part1( map )
     part2( map )
 
     with open('input6.txt', 'r') as f:
         input1 = f.read()
     map = Map(input1)
 
-    solve(map)
+    part1(map)
     part2(map)
 
 play()
