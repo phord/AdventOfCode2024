@@ -1,92 +1,125 @@
 use std::collections::{HashMap, HashSet};
+use itertools::Itertools;
 
-type Node = (i32, i32, char);
-type Map = Vec<Node>;
+
+type Map = HashMap<char, HashSet<Point>>;
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+impl Point {
+    fn new(x: i32, y: i32) -> Point {
+        Point { x, y }
+    }
+}
+
+use std::ops::{Add, Sub, Mul};
+impl Add for Point {
+    type Output = Point;
+    fn add(self, other: Point) -> Point {
+        Point {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
+}
+
+impl Sub for Point {
+    type Output = Point;
+    fn sub(self, other: Point) -> Point {
+        Point {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
+    }
+}
+
+impl Mul<i32> for Point {
+    type Output = Point;
+    fn mul(self, other: i32) -> Point {
+        Point {
+            x: self.x * other,
+            y: self.y * other,
+        }
+    }
+}
+
 struct Game {
     map: Map,
     height: i32,
     width: i32,
 }
 
-#[aoc_generator(day8)]
-pub fn input_generator(input: &str) -> Game {
-    let height = input.lines().count() as i32;
-    let width = input.lines().next().unwrap().trim().len() as i32;
-    input
-        .lines()
-        .enumerate()
-        .flat_map(|(y, l)| {
-            l.trim()
-                .chars()
-                .enumerate()
-                .filter(|(_, c)| *c != '.')
-                .map(|(x, c)| (x as i32, y as i32, c)).collect::<Vec<_>>()
-        })
-        .fold(Game {
-            map: Vec::new(),
-            height,
-            width,
-        }, |mut game, node| {
-            game.map.push(node);
-            game
-        })
+impl Game {
+    fn new(input: &str) -> Game {
+        Game {
+            map: Game::grid_map(input),
+            height: input.lines().count() as i32,
+            width: input.lines().next().unwrap().trim().len() as i32,
+        }
+    }
+
+    fn grid_map(input: &str) -> Map {
+        input
+            .lines()
+            .map(|l| l.trim())
+            .enumerate()
+            .flat_map(|(y, l)| {
+                l.chars().enumerate()
+                    .map(move |(x, c)| (c, Point::new(x as i32, y as i32)))
+            })
+            .into_grouping_map()
+            .collect()
+    }
+
+    fn valid(&self, p: &Point) -> bool {
+        p.x >= 0 && p.x < self.width && p.y >= 0 && p.y < self.height
+    }
 }
 
-fn solve(input: &Game, start:i32, end: i32) -> usize {
+
+#[aoc_generator(day8)]
+fn input_generator(input: &str) -> Game {
+    Game::new(input)
+}
+
+fn solve(game: &Game, start:i32, end: i32) -> usize {
     let mut antinodes = HashSet::new();
-    let mut freq: HashMap<char, Vec<(i32, i32)>> = HashMap::new();
 
-    for ant in input.map.iter() {
-        let (x, y, c) = ant;
-        if ! freq.contains_key(c) {
-            freq.insert(*c, Vec::new());
-        }
-        freq.get_mut(c).unwrap().push((*x, *y));
-    }
-
-    for (_, nodes) in freq {
-        for p1 in nodes.iter() {
-            for p2 in nodes.iter() {
-                if p1 != p2 {
-                    let (n1x, n1y) = p1;
-                    let (n2x, n2y) = p2;
-                    let dx = n1x - n2x;
-                    let dy = n1y - n2y;
-                    for i in start..end {
-                        let node1 = (n1x + i*dx, n1y + i*dy);
-                        let node2 = (n2x - i*dx, n2y - i*dy);
-                        antinodes.insert(node1);
-                        antinodes.insert(node2);
-                        if (node1.0 < 0 || node1.0 >= input.width || node1.1 < 0 || node1.1 >= input.height)
-                            && (node2.0 < 0 || node2.0 >= input.width || node2.1 < 0 || node2.1 >= input.height) {
-                            break;
-                        }
-                    }
-                }
+    game.map.iter()
+        .filter(|(c, _)| *c != &'.')
+        .for_each(|(_, nodes)| {
+            for p in nodes.iter().combinations(2) {
+                let delta = *p[0] - *p[1];
+                let adds = (start..end)
+                    .map(|i| *p[0] + delta * i)
+                    .take_while(|p| game.valid(p));
+                let subs = (start..end)
+                    .map(|i| *p[1] - delta * i)
+                    .take_while(|p| game.valid(p));
+                antinodes.extend(adds.chain(subs));
             }
-        }
-    }
+        });
 
-    antinodes.iter()
-        .filter(|(x,y)| *x >= 0 && *x < input.width && *y >= 0 && *y < input.height )
-        .count()
+    antinodes.len()
 }
 
 #[aoc(day8, part1)]
-pub fn part1(input: &Game) -> usize {
-    solve(input, 1, 2)
+fn part1(game: &Game) -> usize {
+    solve(game, 1, 2)
 }
 
 #[aoc(day8, part2)]
-pub fn part2(input: &Game) -> usize {
-    solve(input, 0, i32::MAX)
+fn part2(game: &Game) -> usize {
+    solve(game, 0, game.width.max(game.height))
 }
 
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    // use super::{part1_loops as part1, part2};
 
     const SAMPLE: &str = "............
 ........0...
@@ -101,7 +134,6 @@ mod tests {
 ............
 ............";
 
-    // (()) and ()() both result in floor 0.
     #[test]
     fn sample1() {
         assert_eq!(part1(&input_generator(SAMPLE)), 14);
