@@ -22,3 +22,8 @@ Cargo.lock
 
 # Do not commit input files
 *.txt
+
+
+# Added by cargo
+
+/target
