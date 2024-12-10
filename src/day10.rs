@@ -1,33 +1,25 @@
 use std::collections::HashSet;
-use itertools::Itertools;
 use crate::{grid::Grid, point::Point};
-
-
 
 #[aoc_generator(day10)]
 fn input_generator(input: &str) -> Grid {
     Grid::new(input)
 }
 
-
-fn adjacent(p1: &Point, p2: &Point) -> bool {
-    let delta = *p1 - *p2;
-    delta.x.abs() == 1 && delta.y.abs() == 0 || delta.x.abs() == 0 && delta.y.abs() == 1
-}
-
 fn dfs(head: &Point, lvl: char, grid: &Grid) -> (usize, usize) {
     let mut summits = HashSet::new();
-    let mut stack = vec![(lvl, head)];
+    let mut stack = vec![(lvl, *head)];
     let mut count = 0;
     while let Some((lvl, p)) = stack.pop() {
+        let neighbors = p.neighbors_straight();
         let next = (lvl as u8 + 1) as char;
-        for p2 in grid.map[&next].iter() {
-            if adjacent(p, p2) {
+        for p2 in grid.map[&next].intersection(&neighbors) {
+            if p.is_adjacent_straight(p2) {
                 if next == '9' {
                     summits.insert(*p2);
                     count += 1;
                 } else {
-                    stack.push((next, p2));
+                    stack.push((next, *p2));
                 }
             }
         }
@@ -35,7 +27,7 @@ fn dfs(head: &Point, lvl: char, grid: &Grid) -> (usize, usize) {
     (summits.len(), count)
 }
 
-
+// returns (part1, part2)
 fn solve(grid: &Grid) -> (usize, usize) {
     let heads = &grid.map[&'0'];
     let mut total = 0;
@@ -48,8 +40,6 @@ fn solve(grid: &Grid) -> (usize, usize) {
     (total, total2)
 }
 
-
-
 #[aoc(day10, part1)]
 fn part1(grid: &Grid) -> usize {
     solve(grid).0
@@ -59,7 +49,6 @@ fn part1(grid: &Grid) -> usize {
 fn part2(grid: &Grid) -> usize {
     solve(grid).1
 }
-
 
 #[cfg(test)]
 mod tests {
