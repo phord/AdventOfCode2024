@@ -15,49 +15,49 @@ fn adjacent(p1: &Point, p2: &Point) -> bool {
     delta.x.abs() == 1 && delta.y.abs() == 0 || delta.x.abs() == 0 && delta.y.abs() == 1
 }
 
-fn dfs(head: &Point, lvl: char, grid: &Grid) -> usize {
+fn dfs(head: &Point, lvl: char, grid: &Grid) -> (usize, usize) {
     let mut summits = HashSet::new();
-    let mut visited = HashSet::new();
     let mut stack = vec![(lvl, head)];
+    let mut count = 0;
     while let Some((lvl, p)) = stack.pop() {
-        if visited.contains(p) {
-            continue;
-        }
-        visited.insert(*p);
         let next = (lvl as u8 + 1) as char;
         for p2 in grid.map[&next].iter() {
             if adjacent(p, p2) {
                 if next == '9' {
                     summits.insert(*p2);
+                    count += 1;
                 } else {
                     stack.push((next, p2));
                 }
             }
         }
     }
-    summits.len()
+    (summits.len(), count)
 }
 
 
-fn solve(grid: &Grid) -> usize {
+fn solve(grid: &Grid) -> (usize, usize) {
     let heads = &grid.map[&'0'];
     let mut total = 0;
+    let mut total2 = 0;
     for h in heads.iter() {
-        total += dfs(h, '0', grid);
+        let (part1, part2) = dfs(h, '0', grid);
+        total += part1;
+        total2 += part2;
     }
-    total
+    (total, total2)
 }
 
 
 
 #[aoc(day10, part1)]
 fn part1(grid: &Grid) -> usize {
-    solve(grid)
+    solve(grid).0
 }
 
 #[aoc(day10, part2)]
 fn part2(grid: &Grid) -> usize {
-    solve(grid)
+    solve(grid).1
 }
 
 
@@ -126,6 +126,9 @@ const SAMPLE81: &str = SAMPLE36;
     #[test]
     fn sample2() {
         assert_eq!(part2(&input_generator(SAMPLE3)), 3);
+        assert_eq!(part2(&input_generator(SAMPLE13)), 13);
+        assert_eq!(part2(&input_generator(SAMPLE227)), 227);
+        assert_eq!(part2(&input_generator(SAMPLE81)), 81);
     }
 
 
