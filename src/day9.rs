@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use itertools::Itertools;
+
 #[derive(Debug,Clone)]
 struct File {
     id: i32,
@@ -10,7 +13,9 @@ type Disk = Vec<File>;
 #[aoc_generator(day9)]
 fn input_generator(input: &str) -> Disk {
     let mut nums = input.chars()
-        .map(|x| x.to_digit(10).unwrap() as i32);
+    .map(|x| x.to_digit(10))
+    .filter(Option::is_some)
+    .map(|x| x.unwrap() as i32);
 
     let mut map = Vec::new();
 
@@ -102,7 +107,7 @@ fn solve(disk: &Disk) -> usize {
             count += 1;
         }
     }
-    unreachable!();
+    0 // unreachable!();
 }
 
 
@@ -123,18 +128,83 @@ fn checksum(disk: &Disk) -> usize {
 fn solve2(disk: &Disk) -> usize {
     let mut disk: Disk = disk.clone();
     let mut i = disk.len() - 1;
+    // let mut order: Vec<usize> = (1..=disk.len()).collect();
+    let gaps: HashMap<i32, Vec<i32>> = disk.iter()
+                        .filter(|d| d.gap > 0)
+                        .map(|d| (d.gap, d.id))
+                        .into_grouping_map().collect();
+
+    // gaps are grouped by gap size, and each group is reverse-sorted by id for cheap removal (but we still have to insert later, so maybe it's not that useful)
+    let mut gaps = (0..=9)
+            .map(|k| { gaps.get(&k).unwrap_or(&Vec::new()).iter().rev().copied().collect::<Vec<i32>>()})
+            .collect::<Vec<Vec<i32>>>();
+    // dbg!(&gaps);
+    // gaps.iter()
+    //                 .map(|(k, v)| (k, v.iter().rev().collect::<Vec<_>>()))
+    //                 .collect::<HashMap<_>>();
+
+    fn find_gap(gaps: &mut [Vec<i32>], size: usize) -> Option<usize> {
+        assert!(size > 0 && size <= 9);
+        let winner = gaps[size..].iter()
+            .enumerate()
+            .map(|(i,v)| (v.last(), i))
+            .filter(|(v, _)| v.is_some())
+            .map(|(v, i)| (*v.unwrap(), i))
+            .min();
+        if let Some((v, i)) = winner {
+            gaps[size + i].pop();
+            Some(v as usize)
+        } else {
+            None
+        }
+    }
+
+    fn remove_gap(gaps : &mut [Vec<i32>], size: usize, id: i32) {
+        // println!("remove_gap {} {}  ({:?})", size, id, gaps[size]);
+        assert!(size > 0 && size <= 9);
+        match gaps[size].binary_search_by(|target| (-target).cmp(&(-id))) {
+            Ok(i) => gaps[size].remove(i),
+            Err(_) => panic!("id not found {} in size {}", id, size),
+        };
+    }
+
+    fn adjust_gap_ids(gaps: &mut [Vec<i32>], start: usize, end: usize) {
+        // println!("adjust_gap_ids {} {}", start, end);
+        for v in gaps[1..].iter_mut() {
+            for id in v.iter_mut() {
+                if *id >= start as i32 && *id < end as i32 {
+                    *id += 1;
+                }
+            }
+        }
+    }
+
+    fn insert_gap(gaps: &mut [Vec<i32>], size: usize, id: i32) {
+        // println!("insert_gap {} {}", size, id);
+        // assert!(size <= 9);
+        if size > 0 && size < 10 {
+            match gaps[size].binary_search_by(|target| (-target).cmp(&(-id))) {
+                Ok(_) => panic!("duplicate id {} in size {}", id, size),
+                Err(i) => gaps[size].insert(i, id),
+            }
+        }
+    }
+
     while i > 0 {
-        // print(&disk);
-        for j in 0..i {
-            if disk[i].len <= disk[j].gap {
+        if let Some(j) = find_gap(&mut gaps, disk[i].len as usize) {
+            if i > j {
                 let mut d = disk[i].clone();
                 disk[i - 1].gap += d.len + d.gap;
+
                 d.gap = disk[j].gap - d.len;
+
+                adjust_gap_ids(&mut gaps, j+1, i);
+                insert_gap(&mut gaps, d.gap as usize, (j+1) as i32);
+
                 disk[j].gap = 0;
                 disk.insert(j + 1, d);
                 disk.remove(i + 1);
                 i += 1;     // The current file moved up one place; adjust.
-                break;
             }
         }
         i -= 1;
