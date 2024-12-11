@@ -35,7 +35,7 @@ enum Work {
     Done(u64)
 }
 
-type Memo = HashMap<(u64, u8), Stones>;
+type Memo = HashMap<(u64, u8), usize>;
 type Mapped = HashMap<u64, HashSet<u8>>;
 #[derive(Default)]
 struct Blink {
@@ -45,21 +45,13 @@ struct Blink {
 
 impl Blink {
 
-    fn prev(&self, stone: u64, blinks: u8) -> Option<Vec<(u64, u8)>> {
-        if let Some(prior) = self.mapped.get(&stone) {
-            let best = prior.iter()
-                    .filter(|x| **x <= blinks)
-                    .max();
-            if let Some(best) = best {
-                return Some(self.memo[&(stone, *best)].iter().map(|s| (*s, blinks - *best)).collect());
-            }
-        }
-        None
+    fn prev(&self, stone: u64, blinks: u8) -> Option<usize> {
+        self.memo.get(&(stone, blinks)).copied()
     }
 
-    fn memoize(&mut self, stone: u64, blinks: u8, stones: &Stones) {
+    fn memoize(&mut self, stone: u64, blinks: u8, stones: usize) {
         if blinks > 10 {
-            self.memo.insert((stone, blinks), stones.clone());
+            self.memo.insert((stone, blinks), stones);
             let exists = self.mapped.get_mut(&stone);
             if let Some(bar) = exists {
                 bar.insert(blinks);
@@ -69,26 +61,26 @@ impl Blink {
         }
     }
 
-    fn blink(&mut self, stone: u64, blinks: u8) -> Stones {
+    fn blink(&mut self, stone: u64, blinks: u8) -> usize {
         let mut work = vec![(stone, blinks)];
-        let mut stones = vec![];
+        let mut stones = 0;
 
         while !work.is_empty() {
             match work.pop() {
                 Some((stone, blinks)) => {
                     if blinks == 0 {
                         // No more blinks for this stone
-                        stones.push(stone);
+                        stones += 1;
                         // print!("=");
                     } else if let Some(prev) = self.prev(stone, blinks) {
-                        // Found some partial work we previously did
-                        println!("   HIT!!! ");
-                        work.extend(prev);
-                    } else if blinks > 1 {
-                        work.extend(
-                            self.blink(stone, blinks - 1).iter()
-                                .map(|s| (*s, 1))
-                        );
+                        // We've seen this one before
+                        // println!("   HIT!!! {} {} => {}", stone, blinks, prev);
+                        stones += prev;
+                    // } else if blinks > 1 {
+                    //     work.extend(
+                    //         self.blink(stone, blinks - 1).iter()
+                    //             .map(|s| (*s, 1))
+                    //     );
                     } else
                     // Blink at this stone
                     if stone == 0 {
@@ -114,21 +106,21 @@ impl Blink {
         }
 
         // Record this work
-        if blinks > 5 || stones.len() > 100 {
-            println!("{}  {}  {}", stone, blinks, stones.len());
-            self.memoize(stone, blinks, &stones);
+        if blinks > 5 || stones > 100 {
+            // println!("Memoize: {}  {}  {}", stone, blinks, stones);
+            self.memoize(stone, blinks, stones);
         }
 
         stones
     }
 
     fn solve(&mut self, stones: &Stones, blinks: u8) -> usize {
-        let mut result = Stones::default();
+        let mut count = 0;
         for stone in stones.iter() {
-            result.extend(self.blink(*stone, blinks));
-            // println!("{:?}", stones);
+            count += self.blink(*stone, blinks);
+            // println!("{:?} {} ==> {}", stones, blinks, count);
         }
-        result.len()
+        count
     }
 
 }
@@ -144,11 +136,7 @@ fn blink(stones: &Stones) -> Stones {
 fn solve(stones: &Stones, blinks: u8) -> usize {
     let mut blink = Blink::default();
     let mut result = Stones::default();
-    for stone in stones.iter() {
-        result.extend(blink.blink(*stone, blinks));
-        // println!("{:?}", stones);
-    }
-    result.len()
+    blink.solve(stones, blinks)
 }
 
 fn solve2(stones : &Stones, blinks: u8) -> usize {
