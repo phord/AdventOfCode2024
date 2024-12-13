@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet}, ops::Index, path::Display};
+use std::{collections::{HashMap, HashSet}, ops::Index};
 use itertools::Itertools;
 use crate::point::Point;
 
@@ -24,6 +24,7 @@ pub struct Grid {
 
 const EMPTY_VALUE: char = ' ';
 
+/// A Grid that allows empty cells and cells anywhere
 pub struct InfiniteGrid {
     pub carte: CarteMap,
 }
@@ -84,20 +85,21 @@ impl InfiniteGrid {
     }
 
     pub fn rotate_right(&self) -> InfiniteGrid {
-        let width = self.width();
+        let width = self.right();
         let origin = Point::new(0, 0);
-        self.rotate_right_around(&origin).translate(&Point::new(0, width - 1))
+        self.rotate_right_around(&origin).translate(&Point::new(0, - width + 1))
     }
 
     pub fn rotate_left(&self) -> InfiniteGrid {
         let height = self.height();
         let origin = Point::new(0, 0);
-        self.rotate_left_around(&origin).translate(&Point::new(height - 1, 0))
+        self.rotate_left_around(&origin).translate(&Point::new(- height + 1, 0))
     }
 
+    /// Shift the cells in the grid to new origin @ delta
     pub fn translate(&self, delta: &Point) -> InfiniteGrid {
         InfiniteGrid {
-            carte: self.carte.iter().map(|(p, c)| (*p + *delta, *c)).collect(),
+            carte: self.carte.iter().map(|(p, c)| (*p - *delta, *c)).collect(),
         }
     }
 }
@@ -214,19 +216,6 @@ mod tests {
 ............
 ............";
 
-
-const ROT_RIGHT: &str = "............
-............
-.........A..
-.0......A...
-...0........
-.....A......
-..0.........
-....0.......
-............
-............
-............
-............";
 
 
 const TINY: &str = "abc

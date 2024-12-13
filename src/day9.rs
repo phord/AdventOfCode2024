@@ -34,6 +34,7 @@ fn input_generator(input: &str) -> Disk {
     map
 }
 
+#[allow(dead_code)]
 fn print(disk: &Disk)  {
     // println!("{:?}", disk);
     for d in disk.iter() {
@@ -44,7 +45,7 @@ fn print(disk: &Disk)  {
             print!(".");
         }
     }
-    println!("");
+    println!();
 }
 
 struct Skid {
@@ -157,15 +158,6 @@ fn solve2(disk: &Disk) -> usize {
         } else {
             None
         }
-    }
-
-    fn remove_gap(gaps : &mut [Vec<i32>], size: usize, id: i32) {
-        // println!("remove_gap {} {}  ({:?})", size, id, gaps[size]);
-        assert!(size > 0 && size <= 9);
-        match gaps[size].binary_search_by(|target| (-target).cmp(&(-id))) {
-            Ok(i) => gaps[size].remove(i),
-            Err(_) => panic!("id not found {} in size {}", id, size),
-        };
     }
 
     fn adjust_gap_ids(gaps: &mut [Vec<i32>], start: usize, end: usize) {
