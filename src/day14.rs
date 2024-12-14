@@ -1,7 +1,9 @@
+use std::path::Path;
+
 use aoc_runner_derive::{aoc, aoc_generator};
 
 use crate::point::Point;
-
+use image;
 
 type Game = Vec<(Point, Point)>;
 type Answer = usize;
@@ -31,6 +33,40 @@ fn display(game: &Game, height: usize, width: usize) {
         println!();
     }
 }
+
+fn make_png(game: &Game, height: usize, width: usize, filename: &str) {
+    let mut img: image::ImageBuffer<image::Rgb<u8>, Vec<_>> = image::ImageBuffer::new(width as u32, height as u32);
+
+    for (pos, _vel) in game {
+        let x = pos.x as u32;
+        let y = pos.y as u32;
+        img.put_pixel(x, y, image::Rgb([255, 255, 255]));
+    }
+    img.save(filename).unwrap();
+}
+
+
+fn make_grid(game: &Game, height: usize, width: usize, filename: &str) {
+
+    let gw = width * width;
+    let gh = height * height;
+
+    let mut img: image::ImageBuffer<image::Rgb<u8>, Vec<_>> = image::ImageBuffer::new(gw as u32, gh as u32);
+
+    for xi in 0..width as i32 {
+        for yi in 0..height as i32 {
+            let game = game_at(game, height, width, yi * width as i32 + xi);
+            for (pos, _vel) in game {
+                let x = (xi * width as i32 + pos.x) as u32;
+                let y = (yi * height as i32 + pos.y) as u32;
+                img.put_pixel(x, y, image::Rgb([255, 255, 255]));
+            }
+        }
+    }
+
+    img.save(filename).unwrap();
+}
+
 
 
 fn game_at(game: &Game, height: usize, width: usize, t: i32) -> Game {
@@ -82,6 +118,7 @@ fn least_y(game: &Game) -> usize {
 }
 
 
+
 fn sim2(game: &Game, height: usize, width: usize) -> usize {
     // let unique_x = least_x(&game);
     // let unique_y = least_y(&game);
@@ -99,6 +136,8 @@ fn sim2(game: &Game, height: usize, width: usize) -> usize {
     // We also know K % 101 = 71, and K % 103 = 16.  We can solve for K by brute force, checking
     // the map for localized X and Y coords at each second. But we only really need to check the
     // maps at unique_x + n * width, searching for a minimized y.
+
+    make_grid(game, height, width, "day14.jpg");
 
     let mut t = unique_x;
     loop {

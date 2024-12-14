@@ -12,6 +12,11 @@ impl Point {
     }
 }
 
+impl core::fmt::Display for Point {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)
+    }
+}
 // Measurements
 impl Point {
     pub fn is_adjacent_straight(&self, other: &Point) -> bool {
@@ -48,6 +53,10 @@ impl Point {
 
 // Transformations
 impl Point {
+    pub fn wrap_to_grid(&self, width: usize, height: usize) -> Point {
+        Point::new(self.x.rem_euclid(width as i32), self.y.rem_euclid(height as i32))
+    }
+
     pub fn rotate_right_around(&self, center: &Point) -> Point {
         (*self - *center).rotate_right() + *center
     }
