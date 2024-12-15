@@ -9,6 +9,7 @@ type CarteMap = HashMap<Point, char>;
 pub type Map = HashMap<char, HashSet<Point>>;
 
 /// A Grid is a cartesian map of cells with some input contents.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Grid {
     /// A map of all cell values to the Points containing that value; always constrained to the input size
     pub map: Map,
@@ -23,6 +24,88 @@ pub struct Grid {
 }
 
 const EMPTY_VALUE: char = ' ';
+
+/// A Grid that groups of cells in a map of contents
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GroupMap {
+    pub map: Map,
+    // Size of the input grid
+    pub height: i32,
+    pub width: i32,
+}
+
+impl GroupMap {
+    pub fn new(input: &str) -> GroupMap {
+        GroupMap::new_from(&Grid::new(input))
+    }
+
+    pub fn new_from(grid: &Grid) -> GroupMap {
+        GroupMap {
+            map: grid.map.clone(),
+            height: grid.height,
+            width: grid.width,
+        }
+    }
+
+    pub fn bottom(&self) -> i32 {
+        0
+    }
+    pub fn top(&self) -> i32 {
+        self.height - 1
+    }
+    pub fn left(&self) -> i32 {
+        0
+    }
+    pub fn right(&self) -> i32 {
+        self.width - 1
+    }
+
+    pub fn get(&self, p: &Point) -> char {
+        let mut cell = '?';
+        for (c, points) in &self.map {
+            if points.contains(&p) {
+                assert_eq!(cell, '?', "Point defined in two places: {}, {}", cell, c);      // Point defined in two places?
+                cell = *c;
+            }
+        }
+        cell
+    }
+}
+
+impl GroupMap {
+
+    pub fn set(&mut self, p: &Point, c: char) {
+        let old = self.get(p);
+        if old != c {
+            self.map.get_mut(&old).unwrap().remove(p);
+            self.map.entry(c).or_default().insert(*p);
+        }
+    }
+
+    pub fn swap(&mut self, p1: Point, p2: Point) {
+        let c1 = self.get(&p1);
+        let c2 = self.get(&p2);
+
+        self.set(&p1, c2);
+        self.set(&p2, c1);
+    }
+}
+
+impl core::fmt::Display for GroupMap {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for y in (self.bottom()..=self.top()).rev() {
+            for x in self.left()..=self.right() {
+                let p = Point::new(x, y);
+                write!(f, "{}", self.get(&p))?;
+            }
+            if y > self.bottom() {
+                writeln!(f)?;
+            }
+        }
+        Ok(())
+    }
+}
+
 
 /// A Grid that allows empty cells and cells anywhere
 pub struct InfiniteGrid {

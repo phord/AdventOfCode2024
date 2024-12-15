@@ -51,11 +51,13 @@ fn make_grid(game: &Game, height: usize, width: usize, filename: &str) {
     let gw = width * width;
     let gh = height * height;
 
-    let mut img: image::ImageBuffer<image::Rgb<u8>, Vec<_>> = image::ImageBuffer::new(gw as u32, gh as u32);
+    let mut img: image::ImageBuffer<image::Rgb<u8>, Vec<_>>
+        = image::ImageBuffer::new((width * width) as u32, (height * height) as u32);
 
     for xi in 0..width as i32 {
         for yi in 0..height as i32 {
-            let game = game_at(game, height, width, yi * width as i32 + xi);
+            let time = yi * width as i32 + xi;
+            let game = game_at(game, height, width, time);
             for (pos, _vel) in game {
                 let x = (xi * width as i32 + pos.x) as u32;
                 let y = (yi * height as i32 + pos.y) as u32;
@@ -67,15 +69,9 @@ fn make_grid(game: &Game, height: usize, width: usize, filename: &str) {
     img.save(filename).unwrap();
 }
 
-
-
 fn game_at(game: &Game, height: usize, width: usize, t: i32) -> Game {
-    game.iter().map(|(pos, vel)| (*pos + *vel * t, *vel))
-            .map(|(pos, vel)| {
-                let x = pos.x.rem_euclid(width as i32);
-                let y = pos.y.rem_euclid(height as i32);
-                (Point::new(x, y), vel)
-            })
+    game.iter()
+        .map(|(pos, vel)| ((*pos + *vel * t).wrap_to_grid(width, height), *vel))
             .collect()
 }
 
