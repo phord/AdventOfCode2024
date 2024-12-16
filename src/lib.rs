@@ -1,3 +1,4 @@
+mod day16;
 mod day15;
 mod day14;
 mod day13;
@@ -14,5 +15,6 @@ pub mod day12;
 
 pub mod grid;
 pub mod point;
+pub mod line;
 
 aoc_lib!{ year = 2024 }
