@@ -20,8 +20,9 @@ fn turn_left(dir: Point) -> Point {
     Point::new(-dir.y, dir.x)
 }
 
+type Path = HashSet<Point>;
 //               (start, start_dir, end, end_dir, cost)
-type NodeOptions = (Point, Point, Point, Point, usize);
+type NodeOptions = (Point, Point, Point, Point, usize, Path);
 type PathMap = HashMap<Point, Vec<NodeOptions>>;
 
 fn build_map(grid: &Grid, pos: Point, freeways: &HashSet<Point>, nodes: &HashSet<Point>, start_dir: Point) -> NodeOptions {
@@ -30,8 +31,11 @@ fn build_map(grid: &Grid, pos: Point, freeways: &HashSet<Point>, nodes: &HashSet
     let mut cost = 0;
     let mut prev = pos;
     let mut cur = pos + start_dir;
+    let mut path = HashSet::new();
+    path.insert(pos);
 
     loop {
+        path.insert(cur);
         assert!(cells.contains(&cur));
         cost += 1;
         let dd = cur - prev;
@@ -42,7 +46,7 @@ fn build_map(grid: &Grid, pos: Point, freeways: &HashSet<Point>, nodes: &HashSet
         let nay = cur.neighbors_straight();
         let nay = nay.iter().filter(|p| cells.contains(p) && **p != prev).collect::<Vec<_>>();
         if nay.len() != 1 || nodes.contains(&cur) {
-            return (pos, start_dir, cur, end_dir, cost);
+            return (pos, start_dir, cur, end_dir, cost, path);
         }
         prev = cur;
         cur = *nay[0];
@@ -86,15 +90,24 @@ fn simplify(game: &Grid) -> PathMap {
     segments
 }
 
-fn seek(pos: Point, dir: Point, paths: PathMap, seen: HashSet<Point>, goal: Point, memo: &mut HashMap<(Point, Point), usize>, best: usize, cost: usize) -> Option<usize> {
+fn seek(pos: Point, dir: Point, paths: PathMap, seen: HashSet<Point>, goal: Point, memo: &mut HashMap<(Point, Point), usize>, path: Path, best: usize, cost: usize, memo_path: &mut (usize, Path)) -> Option<usize> {
     // println!("seek: depth:{}  {} -> {}  cost:{}  best:{}", seen.len(), pos, goal, cost, best);
     if pos == goal {
         // println!("seek: GOOOOOOOOAL! {}", cost);
-        return Some(cost);
-    } else if best <= cost {
+        if cost < memo_path.0 {
+            memo_path.1.clear();
+            memo_path.0 = cost;
+        }
+        if cost == memo_path.0 {
+            memo_path.1.extend(path.iter());
+            println!("BEST: {}  {}", cost, memo_path.1.len());
+            return Some(cost);
+        }
+        return None;
+    } else if best < cost {
         // println!("seek: depth:{}  {} -> {}  cost:{}  best:{}  too expensive", seen.len(), pos, goal, cost, best);
         return None;
-    } else if memo.keys().contains( &(pos, dir)) && memo[&(pos, dir)] <= cost {
+    } else if memo.keys().contains( &(pos, dir)) && memo[&(pos, dir)] < cost {
         // println!("Seen this one before:  {} -> {}  prev:{} <= cost:{} ", pos, goal, memo[&(pos, dir)], cost );
         return None;
     }
@@ -107,18 +120,21 @@ fn seek(pos: Point, dir: Point, paths: PathMap, seen: HashSet<Point>, goal: Poin
     let cost =
         options.iter()
             .filter(|p| !seen.contains(&p.2))
-            .map(|(start, start_dir, end, end_dir, path_cost)| {
+            .map(|(start, start_dir, end, end_dir, path_cost, new_path)| {
                 assert_eq!(*start, pos);
                 let paths = paths.clone();
                 let mut seen = seen.clone();
                 seen.insert(pos);
+
+                let mut path = path.clone();
+                path.extend(new_path.iter());
 
                 if dir != *start_dir && num::abs(dir.x) == num::abs(start_dir.x) {
                     println!("Oh shit:  dir:{} start_dir:{}  pos:{}  end:{}  seen:{:?}", dir, start_dir, pos, end, seen);
                 }
                 assert!(dir == *start_dir || num::abs(dir.x) != num::abs(start_dir.x));
                 let cost = cost + path_cost + if dir == *start_dir { 0 } else { 1000 } ;
-                let this_cost = if let Some(c) = seek(*end, *end_dir, paths, seen.clone(), goal, memo, best, cost) {
+                let this_cost = if let Some(c) = seek(*end, *end_dir, paths, seen.clone(), goal, memo, path, best, cost, memo_path) {
                     c
                 } else {
                     // fixme: better way to say "no answer this path"?
@@ -131,7 +147,7 @@ fn seek(pos: Point, dir: Point, paths: PathMap, seen: HashSet<Point>, goal: Poin
     cost
 }
 
-fn solve(game: &Grid) -> usize {
+fn solve(game: &Grid) -> (usize, usize) {
     let paths = simplify(game);
 
     let east: Point = Point::new(1, 0);
@@ -139,19 +155,28 @@ fn solve(game: &Grid) -> usize {
     let pos = *game.map[&'S'].iter().next().unwrap();
     let goal = *game.map[&'E'].iter().next().unwrap();
     let memo: &mut HashMap<(Point, Point), _> = &mut HashMap::new();
+    let mut memo_path = (usize::MAX, Path::default());
 
     println!("Total paths: {}", paths.len());
-    seek(pos, dir, paths, HashSet::new(), goal, memo, usize::MAX, 0).unwrap()
+    let cost = seek(pos, dir, paths, HashSet::new(), goal, memo, Path::default(), 82460, 0, &mut memo_path).unwrap();
+
+    let mut game = game.clone();
+    for p in memo_path.1.iter() {
+        game.set(p, 'O');
+    }
+    println!("{}", game);
+
+    (cost, memo_path.1.len())
 }
 
 #[aoc(day16, part1)]
 fn part1(game: &Grid) -> usize {
-    solve(game)
+    solve(game).0
 }
 
 #[aoc(day16, part2)]
 fn part2(game: &Grid) -> usize {
-    todo!()
+    solve(game).1
 }
 
 
@@ -204,7 +229,8 @@ mod tests {
 
     #[test]
     fn part2_example() {
-        assert_eq!(part2(&parse("<EXAMPLE>")), 12);
+        assert_eq!(part2(&parse(SAMPLE)), 45);
+        assert_eq!(part2(&parse(SAMPLE2)), 64);
     }
 }
 
