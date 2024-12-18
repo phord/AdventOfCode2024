@@ -1,4 +1,5 @@
 use aoc_runner_derive::{aoc, aoc_generator};
+use pathfinding::prelude::astar;
 use std::collections::{HashMap, HashSet};
 use crate::point::Point;
 
@@ -39,7 +40,7 @@ fn print(input: &[Point], path: &[Point], size: i32) {
     }
 }
 
-fn astar(input: &[Point], size: i32, start: Point, end: Point) -> usize {
+fn my_astar(input: &[Point], size: i32, start: Point, end: Point) -> usize {
 
     let grid: HashSet<Point> = HashSet::from_iter(input.iter().cloned());
 
@@ -75,15 +76,23 @@ fn astar(input: &[Point], size: i32, start: Point, end: Point) -> usize {
             }
         }
     }
-    0
+    usize::MAX
 }
 
-
+// unexpectedly, my A* function is 8 x faster than the pathfinding crate
 fn solve(bytes: &[Point], size: i32) -> usize {
     let start = Point::new(0,0);
     let end = Point::new(size-1,size-1);
 
-    astar(bytes, size, start, end)
+    // if let Some((_, cost)) =  astar(&start,
+    //         |p| p.neighbors_straight().iter()
+    //                                 .filter(|p| !bytes.contains(p))
+    //                                 .filter(|p| p.x >= 0 && p.x < size  && p.y >= 0 && p.y < size )
+    //                                 .map(|p| (*p, 1))
+    //                                 .collect::<Vec<_>>(),
+    //         |p| p.manhattan_distance(&end),
+    //          |p| *p == end) { cost as usize } else { usize::MAX }
+    my_astar(bytes, size, start, end)
 }
 
 #[aoc(day18, part1)]
@@ -94,10 +103,10 @@ fn part1(input: &Grid) -> usize {
 }
 
 fn solve2(input: &Grid, first: usize, size: i32) -> Point {
-    for i in first..input.len() {
-        if solve(&input[..i], size) == 0 {
-            return input[i-1];
-        }
+    let indexes = (first+1..input.len()).collect::<Vec<_>>();
+    let found = first + indexes.partition_point(|i| solve(&input[..*i], size) < usize::MAX-1);
+    if found < input.len() {
+        return input[found];
     }
     unreachable!()
 }
