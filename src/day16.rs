@@ -87,6 +87,55 @@ fn simplify(game: &Grid) -> PathMap {
             .collect::<HashMap<_,_>>();
             // .collect::<HashMap<Point, NodeOptions>>();
 
+    // // "Reduce" the segment population by combining all the possible pairs of segments and eliminating every other node.
+    // let mut target = goal;
+    // let mut work = [goal].to_vec();
+    // while let Some(target) = work.pop() {
+    //     let target = target.clone();
+    //     let mut segments = segments.clone();
+    //     let mut removed = HashSet::new();
+    //     let mut new_work = Vec::default();
+    //     let new_segs:Vec<_> =
+    //         segments[&target].iter()
+    //             .flat_map(|ppath0| {
+    //                 let (start, start_dir, end, end_dir, cost, path) = ppath0.clone();
+    //                 removed.insert((target, end));
+    //                 removed.insert((end, target));
+
+    //                 segments[&end].iter()
+    //                     .map(|ppath| {
+    //                         let (start2, start_dir2, end2, end_dir2, cost2, path2) = ppath;
+    //                         assert!(end == *start2);
+    //                         new_work.push(end2.clone());
+    //                         removed.insert((*start2, *end2));
+    //                         removed.insert((*end2, *start2));
+    //                         let mut path = path2.clone();
+    //                         path.extend(path2.iter());
+    //                         let extra_cost =
+    //                             if end_dir != *start_dir2 {
+    //                                 1000
+    //                             } else {
+    //                                 0
+    //                             };
+    //                         (target, start_dir, *end2, *end_dir2, cost + cost2 + extra_cost, path)
+    //                     })
+    //             }).collect();
+
+    //     println!("Queue: {}  Adding: {} Removing: {}", work.len(), new_segs.len(), removed.len());
+
+    //     segments = segments.iter()
+    //         .map(|(k, v)| (*k, v.iter()
+    //             .filter(|(start, _, end, _, _, _)| !removed.contains(&(*start, *end)))
+    //             .cloned()
+    //             .collect::<Vec<_>>()))
+    //         .filter(|(_, v)| !v.is_empty())
+    //         .collect::<HashMap<_,_>>();
+
+    //     segments.insert(target, new_segs);
+    //     target = *segments.keys().next().unwrap();
+    // }
+
+
     segments
 }
 
@@ -147,7 +196,47 @@ fn seek(pos: Point, dir: Point, paths: PathMap, seen: HashSet<Point>, goal: Poin
     cost
 }
 
+fn djikstra(game: &Grid) -> usize {
+    let paths = simplify(game);
+    let start = *game.map[&'S'].iter().next().unwrap();
+    let goal = *game.map[&'E'].iter().next().unwrap();
+    let mut dir = Point::new(1, 0);
+
+    let mut dist: HashMap<_, _> = paths.iter().map(|(k, v)| (*k, usize::MAX)).collect();
+    let mut prev = HashMap::new();
+    let mut q: HashMap<_, _> = paths.iter().map(|(k, v)| (*k, usize::MAX)).collect();
+
+    dist.insert(start, 0);
+
+    q.insert(start, 0);
+
+    while !q.is_empty() {
+        let u = *q.iter().min_by_key(|(_, v)| *v).unwrap().0;
+        q.remove(&u);
+
+        for v in paths[&u].iter() {
+            let (next, sdir, _, edir, mut cost, _) = v;
+            if *sdir != dir {
+                cost += 1000;
+            }
+            let alt = dist[&u].saturating_add(cost);
+
+            if alt < dist[next] {
+                dist.insert(*next, alt);
+                prev.insert(next, u);
+            }
+        }
+    }
+    println!("dist: {:?}", dist);
+    println!("prev: {:?}", prev);
+    println!("q: {:?}", q);
+
+    0
+}
+
 fn solve(game: &Grid) -> (usize, usize) {
+    djikstra(game);
+
     let paths = simplify(game);
 
     let east: Point = Point::new(1, 0);
