@@ -108,64 +108,44 @@ pub fn my_astar(grid: &Game, start: Point, end: Point, cheat: Point, len: usize,
     vec![]
 }
 
-fn solve(grid: &Game, cheat: &Point, len: usize, avoid: &Vec<Point>) -> Vec<Point> {
+fn solve(grid: &Game, len: usize) -> usize {
     let start = grid.map.get(&'S').unwrap().iter().next().unwrap();
     let end = grid.map.get(&'E').unwrap().iter().next().unwrap();
 
-    my_astar( grid, *start, *end, *cheat, len, avoid)
-    // astar(start,
-            // |p|
-            //     p.neighbors_straight().iter()
-            //                         .filter(|p| cheat.contains(p) || grid.get(p) != '#')
-            //                         .map(|p| (p, 1))
-            //                         .map(|(p, i)| (*p, i))
-            //                         .collect::<Vec<_>>(),
-            // |p| p.manhattan_distance(end),
-            // |p| *p == *end) {
-            //     // print(grid, &path);
-            //      (path, cost as usize)
-            // } else { (vec![], usize::MAX) }
-}
 
-#[aoc(day20, part1)]
-fn part1(grid: &Game) -> Answer {
     let nullpoint = Point::new(-1, -1);
 
-    let mut path = solve(grid, &nullpoint, 0, &vec![]);
-    let start = grid.map.get(&'S').unwrap().iter().next().unwrap();
-    path.insert(0, *start);
-    let best = path.len();
+    let mut path = my_astar( grid, *start, *end, nullpoint, len, &vec![]);
 
-    print(grid, &path);
-    println!("Length: {}", best);
+    path.insert(0, *start);
 
     let mut all_cheats = HashSet::new();
     for (i, pos) in path.iter().enumerate() {
-        println!("{}/{}", i, best);
-        if i > path.len()-3 {
+        if i > path.len() - len - 1 {
             break;
         }
         all_cheats.extend(
-            path[i+3..].iter()
+            path[i + 1 + len..].iter()
                 .enumerate()
-                .filter(|(_, p)| p.manhattan_distance(pos) == 2)
-                .map(|(j, p)| (j+1, *pos, *p))
+                .filter(|(_, p)| p.manhattan_distance(pos) as usize <= len)
+                .filter(|(j, p)| *j + 1 + len - p.manhattan_distance(pos) as usize >= 100)
+                .map(|(_, p)| (*pos, *p))
         );
     }
 
-    // for (d, pos, end) in all_cheats.iter().filter(|(d, _, _)| *d == 12) {
-    //     println!("{}: {} -> {}", d, pos, end);
-    // }
-    let mut lengths = all_cheats.iter().map(|(d, _, _)| d).collect::<Vec<_>>();
-    lengths.sort();
-    println!("{:?}", lengths);
-    all_cheats.iter().filter(|(d, _, _)| *d >= 100).count()
-    // all_cheats.iter().filter(|(d, _, _)| *d == 4).count()
+    all_cheats.len()
+}
+
+
+
+#[aoc(day20, part1)]
+fn part1(grid: &Game) -> Answer {
+    solve(grid, 2)
 }
 
 #[aoc(day20, part2)]
 fn part2(grid: &Game) -> Answer {
-    todo!()
+    solve(grid, 20)
 }
 
 
@@ -203,3 +183,6 @@ mod tests {
 // 1651 is too high
 // 1495 is too low
 // 1321 is too low
+
+// Part2
+// 1072786 is too high
