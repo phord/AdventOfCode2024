@@ -30,12 +30,12 @@ fn test_possible(towels: &Towels, pattern: &str) -> bool {
     false
 }
 
-fn count_possible(memo: &mut HashMap<String, usize>, towels: &Towels, pattern: &str) -> usize {
+fn count_possible(memo: &mut HashMap<usize, usize>, towels: &Towels, pattern: &str) -> usize {
     if pattern.is_empty() {
         return 1;
     }
-    if memo.contains_key(pattern) {
-        return memo[pattern];
+    if memo.contains_key(&pattern.len()) {
+        return memo[&pattern.len()];
     }
 
     let mut count = 0;
@@ -44,8 +44,32 @@ fn count_possible(memo: &mut HashMap<String, usize>, towels: &Towels, pattern: &
             count += count_possible(memo, towels, &pattern[width+1..]);
         }
     }
-    memo.insert(pattern.to_string(), count);
+    memo.insert(pattern.len(), count);
     count
+}
+
+fn solve_recursive(input: &Game) -> usize {
+    let (towels, patterns) = input;
+    patterns.iter().map(|p| { let mut memo = HashMap::new(); count_possible(&mut memo, towels, p)}).sum()
+}
+
+fn dp(towels: &Towels, pattern: &str) -> usize {
+    let mut memo = vec![0usize; pattern.len() + 1];
+    memo[pattern.len()] = 1;
+    for i in 0..pattern.len() {
+        let j = pattern.len() - i - 1;
+        for t in towels.iter().filter(|t| pattern[j..].starts_with(*t)) {
+            memo[j] += memo[j + t.len()];
+        }
+    }
+
+    memo[0]
+}
+
+fn solve_dp(input: &Game) -> usize {
+    let (towels, patterns) = input;
+
+    patterns.iter().map(|p| dp(towels, p)).sum()
 }
 
 #[aoc(day19, part1)]
@@ -56,9 +80,8 @@ fn part1(input: &Game) -> Answer {
 
 #[aoc(day19, part2)]
 fn part2(input: &Game) -> Answer {
-    let (towels, patterns) = input;
-    let mut memo = HashMap::new();
-    patterns.iter().map(|p| { println!("{}", p); count_possible(&mut memo, towels, p)}).sum()
+    solve_dp(input)
+    // solve_recursive(input)
 }
 
 
