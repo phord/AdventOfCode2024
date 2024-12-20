@@ -131,7 +131,9 @@ fn solve(grid: &Game, cheat: &Point, len: usize, avoid: &Vec<Point>) -> Vec<Poin
 fn part1(grid: &Game) -> Answer {
     let nullpoint = Point::new(-1, -1);
 
-    let path = solve(grid, &nullpoint, 0, &vec![]);
+    let mut path = solve(grid, &nullpoint, 0, &vec![]);
+    let start = grid.map.get(&'S').unwrap().iter().next().unwrap();
+    path.insert(0, *start);
     let best = path.len();
 
     print(grid, &path);
@@ -140,29 +142,15 @@ fn part1(grid: &Game) -> Answer {
     let mut all_cheats = HashSet::new();
     for (i, pos) in path.iter().enumerate() {
         println!("{}/{}", i, best);
-
-        let mut avoid = Vec::new();
-        loop {
-            let path = solve(grid, pos, 1, &avoid);
-            if path.len() == best {
-                break;
-            }
-            if path.len() < best {
-                // println!("{}: {} -> {:?}", best - path.len(), *pos, &avoid);
-                let end = path.iter().position(|p| *p == *pos).unwrap();
-                let first = path[(end+1).min(path.len()-1)];
-                if first == *pos || grid.get(&first) != '#' {
-                    break;
-                }
-                let end = path[(end+2).min(path.len()-1)];
-                avoid.push(end);
-                all_cheats.insert((best - path.len(), *pos, end));
-                // if best - path.len() == 12 {
-                //     println!("{}: {} -> {}", best - path.len(), *pos - Point::new(0, grid.height - 1), end - Point::new(0, grid.height - 1));
-                //     print(&grid, &path);
-                // }
-            }
+        if i > path.len()-3 {
+            break;
         }
+        all_cheats.extend(
+            path[i+3..].iter()
+                .enumerate()
+                .filter(|(_, p)| p.manhattan_distance(pos) == 2)
+                .map(|(j, p)| (j+1, *pos, *p))
+        );
     }
 
     // for (d, pos, end) in all_cheats.iter().filter(|(d, _, _)| *d == 12) {
@@ -171,8 +159,8 @@ fn part1(grid: &Game) -> Answer {
     let mut lengths = all_cheats.iter().map(|(d, _, _)| d).collect::<Vec<_>>();
     lengths.sort();
     println!("{:?}", lengths);
-    // all_cheats.iter().filter(|(d, _, _)| *d >= 100).count()
-    all_cheats.iter().filter(|(d, _, _)| *d == 4).count()
+    all_cheats.iter().filter(|(d, _, _)| *d >= 100).count()
+    // all_cheats.iter().filter(|(d, _, _)| *d == 4).count()
 }
 
 #[aoc(day20, part2)]
