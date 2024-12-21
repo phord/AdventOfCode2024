@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use aoc_runner_derive::{aoc, aoc_generator};
 
 use crate::{grid::GroupMap, point::Point};
@@ -55,48 +57,62 @@ impl NumberPad {
             '7' => Point::new(0, 3),
             '8' => Point::new(1, 3),
             '9' => Point::new(2, 3),
+            'X' => self.panic,
             _ => panic!("Unknown key {}", key),
         }
     }
 
-    fn control_seq(&mut self, code: &str) -> String {
-        let mut seq = String::new();
+    fn control_seq(&mut self, code: &str) -> HashSet<String> {
+        let mut seq = Vec::new();
         for c in code.chars() {
-            seq.push_str(&self.press_key(c));
+            seq.push(self.press_key(c));
         }
-        seq
+        demux(&seq)
     }
 
-    fn press_key(&mut self, key: char) -> String {
+    fn press_key(&mut self, key: char) -> Vec<String> {
         let key = self.locate(key);
-        let mut seq = String::new();
         let travel = key - self.pos;
 
         // Every movement ends with A
 
-        // up-right is cheap
-        if travel.y > 0 {
-            for _ in 0..travel.y {
-                seq.push('^');
-            }
-        }
-        if travel.x > 0 {
-            for _ in 0..travel.x {
-                seq.push('>');
-            }
-        }
-        if travel.y < 0 {
-            for _ in 0..travel.y.abs() {
-                seq.push('v');
-            }
-        }
-        if travel.x < 0 {
-            for _ in 0..travel.x.abs() {
-                seq.push('<');
-            }
-        }
+        // Every path to key with fewest turns
 
-        seq.push('A');
+        let horz =
+            if travel.x < 0 { "<".repeat(-travel.x as usize) }
+            else if travel.x > 0 { ">".repeat(travel.x as usize) }
+            else { "".to_string() };
+
+        let vert =
+            if travel.y < 0 { "v".repeat(-travel.y as usize) }
+            else if travel.y > 0 { "^".repeat(travel.y as usize) }
+            else { "".to_string() };
+
+        // Three possibilities:
+        //    1. Not moving horizontally
+        //    2. Moving in both directions, but one path crosses panic zone
+        //         When moving up from (_,0) to (0,_) => must move vert first
+        //         When moving down from (0,_) to (_,) => must move horz first
+        //    3. Moving in both directions, but both are valid
+
+        let vert_horz = vert.clone() + &horz + &"A";
+        let horz_vert = horz.clone() + &vert + &"A";
+
+        let seq =
+            if self.pos.y == self.panic.y && key.x == self.panic.x {
+                // Danger zone: Move up then left
+                vec![vert_horz]
+            } else if self.pos.x == self.panic.x && key.y == self.panic.y {
+                // Danger zone: Move right then down
+                vec![horz_vert]
+            } else if horz_vert == vert_horz {
+                // Both paths are the same
+                vec![horz_vert]
+            } else {
+                // Both paths are safe
+                vec![horz_vert, vert_horz]
+            };
+
         self.pos = key;
         seq
     }
@@ -112,6 +128,7 @@ impl NumberPad {
 +---+---+---+
  */
 
+ #[derive(Clone)]
 struct DirPad {
     pos: Point,
     panic: Point,
@@ -136,80 +153,131 @@ impl DirPad {
         }
     }
 
-
-    fn control_seq(&mut self, code: &str) -> String {
-        let mut seq = String::new();
+    fn control_seq_one(&mut self, code: &str) -> HashSet<String> {
+        let mut seq = Vec::new();
         for c in code.chars() {
-            seq.push_str(&self.press_key(c));
+            seq.push(self.press_key(c));
         }
-        seq
+
+        demux(&seq)
     }
 
-    fn press_key(&mut self, key: char) -> String {
+    fn control_seq(&mut self, code: HashSet<String>) -> HashSet<String> {
+        code.iter()
+            .flat_map(|c| self.control_seq_one(c))
+            .collect()
+    }
+
+    fn press_key(&mut self, key: char) -> Vec<String> {
         let key = self.locate(key);
-        let mut seq = String::new();
         let travel = key - self.pos;
 
-        // Every movement ends with A
+        // Every path to key with fewest turns
+        let horz =
+            if travel.x < 0 { "<".repeat(-travel.x as usize) }
+            else if travel.x > 0 { ">".repeat(travel.x as usize) }
+            else { "".to_string() };
 
-        // up-right is cheap
-        if travel.x > 0 {
-            for _ in 0..travel.x {
-                seq.push('>');
-            }
-        }
-        if travel.y > 0 {
-            for _ in 0..travel.y {
-                seq.push('^');
-            }
-        }
-        if travel.y < 0 {
-            for _ in 0..travel.y.abs() {
-                seq.push('v');
-            }
-        }
-        if travel.x < 0 {
-            for _ in 0..travel.x.abs() {
-                seq.push('<');
-            }
-        }
+        let vert =
+            if travel.y < 0 { "v".repeat(-travel.y as usize) }
+            else if travel.y > 0 { "^".repeat(travel.y as usize) }
+            else { "".to_string() };
 
-        seq.push('A');
+        // Three possibilities:
+        //    1. Not moving horizontally
+        //    2. Moving in both directions, but one path crosses panic zone
+        //         When moving up from (_,0) to (0,_) => must move vert first
+        //         When moving down from (0,_) to (_,) => must move horz first
+        //    3. Moving in both directions, but both are valid
+
+        let vert_horz = vert.clone() + &horz + &"A";
+        let horz_vert = horz.clone() + &vert + &"A";
+
+        let seq =
+            if self.pos.y == self.panic.y && key.x == self.panic.x {
+                // Danger zone: Move down then right
+                vec![vert_horz]
+            } else if self.pos.x == self.panic.x && key.y == self.panic.y {
+                // Danger zone: Move left then up
+                vec![horz_vert]
+            } else if horz_vert == vert_horz {
+                // Both paths are the same
+                vec![horz_vert]
+            } else {
+                // Both paths are safe
+                vec![horz_vert, vert_horz]
+            };
+
         self.pos = key;
         seq
     }
+
+}
+
+
+fn demux(cmds: &Vec<Vec<String>>) -> HashSet<String> {
+
+    let mut out = HashSet::from_iter(cmds.last().unwrap().iter().cloned());
+    for i in 0..cmds.len()-1 {
+        let j = cmds.len() - i - 2;
+        let left = &cmds[j];
+
+        // Combine every element in left and right.  For each l, and each r, return l+r
+        let demux: HashSet<String> =
+            left.iter().flat_map(|l| {
+                out.iter().map(|r| l.clone() + r).collect::<Vec<String>>()
+            }).collect();
+
+        out = demux;
+    }
+    out
+}
+
+#[test]
+fn demux_basic() {
+    let vars = [["foo", "bar"], ["baz", "qux"]];
+    let vars = vars.iter().map(|v| v.iter().map(|s| s.to_string()).collect()).collect();
+    let out = demux(&vars);
+    assert_eq!(Vec::from_iter(out.iter().cloned()), vec!["foo".to_string() + "baz", "foo".to_string() + "qux", "bar".to_string() + "baz", "bar".to_string() + "qux"]);
 }
 
 // To control the position on the numberpad, we use the direction pad.
 struct RubeGoldberg {
     pad: NumberPad,
-    dpad1: DirPad,
-    dpad0: DirPad,
+    dpads: Vec<DirPad>,
 }
 
 impl RubeGoldberg {
-    fn new() -> RubeGoldberg {
+    fn new(robots: usize) -> RubeGoldberg {
+        let dpads = vec![DirPad::new(); robots];
         RubeGoldberg {
             pad: NumberPad::new(),
-            dpad1: DirPad::new(),
-            dpad0: DirPad::new(),
+            dpads,
         }
     }
 
-    fn control_seq(&mut self, code: &str) -> String {
-        let cmds = self.pad.control_seq(code);
-        println!("cmds: {}", cmds);
-        let cmds = self.dpad1.control_seq(&cmds);
-        println!("cmds: {}", cmds);
-        let cmds = self.dpad0.control_seq(&cmds);
-        println!("cmds: {}", cmds);
+    fn control_seq(&mut self, code: &str) -> HashSet<String> {
+        let mut cmds = HashSet::from_iter(self.pad.control_seq(code).iter().cloned());
+        println!("cmds: {}", cmds.len());
+        for cmd in cmds.iter() {
+            println!("     {}", cmd);
+        }
+        for dpad in self.dpads.iter_mut() {
+            cmds = dpad.control_seq(cmds);
+            println!("cmds: {}", cmds.len());
+            for cmd in cmds.iter() {
+                println!("     {}", cmd);
+            }
+        }
         cmds
     }
 
     fn complexity(&mut self, code: &str) -> usize {
         // parse the integer from the string
         let mult = code[0..3].parse::<usize>().unwrap();
-        let len = self.control_seq(code).len();
+        let seqs = self.control_seq(code);
+
+        let len = seqs.iter().map(|s| s.len()).min().unwrap();
         println!("{} * {} = {}    {}", len, mult, mult * len, code);
         mult * len
     }
@@ -222,13 +290,14 @@ impl RubeGoldberg {
 
 #[aoc(day21, part1)]
 fn part1(input: &Game) -> Answer {
-    let mut pad = RubeGoldberg::new();
+    let mut pad = RubeGoldberg::new(2);
     pad.solve(input)
 }
 
 #[aoc(day21, part2)]
 fn part2(input: &Game) -> Answer {
-    todo!()
+    let mut pad = RubeGoldberg::new(25);
+    pad.solve(input)
 }
 
 
@@ -247,23 +316,26 @@ mod tests {
     #[test]
     fn part1_example() {
         let mut pad = NumberPad::new();
-        assert_eq!(pad.press_key('A'), "A");
-        assert_eq!(pad.press_key('0'), "<A");
-        assert_eq!(pad.press_key('2'), "^A");
-        assert_eq!(pad.press_key('9'), "^^>A");
-        assert_eq!(pad.press_key('1'), "vv<<A");
-        assert_eq!(pad.press_key('A'), ">>vA");
-        assert_eq!(pad.control_seq("029A"), "<A^A^^>AvvvA");
+        assert_eq!(pad.press_key('A'), ["A"]);
+        assert_eq!(pad.press_key('0'), ["<A"]);
+        assert_eq!(pad.press_key('2'), ["^A"]);
+        assert_eq!(pad.press_key('9'), [ ">^^A", "^^>A"]);
+        assert_eq!(pad.press_key('1'), ["<<vvA", "vv<<A"]);
+        assert_eq!(pad.press_key('A'), [">>vA"]);
+        assert_eq!(pad.control_seq("029A"),
+                HashSet::from_iter(["<A^A>^^AvvvA", "<A^A^^>AvvvA"].iter().map(|s| s.to_string())));
+
 
         let mut dpad = DirPad::new();
-        assert_eq!(dpad.press_key('A'), "A");
-        assert_eq!(dpad.press_key('<'), "v<<A");
-        assert_eq!(dpad.press_key('^'), ">^A");
-        assert_eq!(dpad.press_key('v'), "vA");
-        assert_eq!(dpad.press_key('>'), ">A");
-        assert_eq!(dpad.press_key('A'), "^A");
+        assert_eq!(dpad.press_key('A'), ["A"]);
+        assert_eq!(dpad.press_key('<'), ["v<<A"]);
+        assert_eq!(dpad.press_key('^'), [">^A"]);
+        assert_eq!(dpad.press_key('v'), ["vA"]);
+        assert_eq!(dpad.press_key('>'), [">A"]);
+        assert_eq!(dpad.press_key('A'), ["^A"]);
 
-        assert_eq!(dpad.control_seq(&pad.control_seq("029A")).len(), "v<<A>>^A<A>AvA<^AA>A<vAAA>^A".len());
+        assert_eq!(dpad.control_seq(pad.control_seq("029A")).iter().map(|s| s.len()).min().unwrap(),
+            "v<<A>>^A<A>AvA<^AA>A<vAAA>^A".len());
     }
     // <vA<AA>>^AvAA<^A>A<v<A>>^AvA^A<vA>^A<v<A>^A>AAvA^A<v<A>A>^AAAvA<^A>A
     // v<<A>>^A<A>AvA<^AA>A<vAAA>^A
@@ -272,30 +344,33 @@ mod tests {
 
     #[test]
     fn part1_exampleB() {
-        let mut mine = RubeGoldberg::new();
+        let mut mine = RubeGoldberg::new(2);
         let seq = mine.control_seq("029A");
         assert_eq!(seq.len(), "<vA<AA>>^AvAA<^A>A<v<A>>^AvA^A<vA>^A<v<A>^A>AAvA^A<v<A>A>^AAAvA<^A>A".len());
     }
 
     #[test]
     fn part1_exampleC() {
-        let mut mine = RubeGoldberg::new();
+        let mut pad = NumberPad::new();
+        println!("{:?}", pad.control_seq("379A"));
+        let mut mine = RubeGoldberg::new(2);
         // <v<A>>^AvA^A<vA<AA>>^AAvA<^A>AAvA^A<vA>^AA<A>A<v<A>A>^AAAvA<^A>A
-        assert_eq!(mine.control_seq("379A"),
-                "<v<A>>^AvA^A<vA<AA>>^AAvA<^A>AAvA^A<vA>^AA<A>A<v<A>A>^AAAvA<^A>A");
+        assert_eq!(mine.control_seq("379A").len(),
+                "<v<A>>^AvA^A<vA<AA>>^AAvA<^A>AAvA^A<vA>^AA<A>A<v<A>A>^AAAvA<^A>A".len());
     }
 
     #[test]
     fn part1_example2() {
         let game = parse(SAMPLE);
-        let mut mine = RubeGoldberg::new();
+        let mut mine = RubeGoldberg::new(2);
         assert_eq!(mine.solve(&game), 126384);
     }
 
     #[test]
     fn part2_example() {
-        assert_eq!(part2(&parse("<EXAMPLE>")), 123);
-    }
+        let game = parse(SAMPLE);
+        let mut mine = RubeGoldberg::new(3);
+        assert_eq!(mine.solve(&game), 126384);    }
 }
 
 // 80 * 805 = 64400    805A
@@ -315,4 +390,5 @@ mod tests {
 // cmds: <AAv<A>>^A<A>Av<AA>^AvA<A>^A
 // cmds: v<<A>>^AAv<A<A>>^AvAA^<A>Av<<A>>^AvA^Av<A<A>>^AAvA^<A>Av<A>^Av<<A>>^AvA^<A>A
 // 76 * 582 = 44232    582A
-// 217676
+
+// Part1: 202648
