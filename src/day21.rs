@@ -108,9 +108,13 @@ impl NumberPad {
             } else if horz_vert == vert_horz {
                 // Both paths are the same
                 vec![horz_vert]
+            } else if travel.x >= 0 {
+                vec![vert_horz]
             } else {
                 // Both paths are safe
-                vec![horz_vert, vert_horz]
+                // vec![horz_vert, vert_horz]
+                // But we only need this one:
+                vec![horz_vert]
             };
 
         self.pos = key;
@@ -203,9 +207,12 @@ impl DirPad {
             } else if horz_vert == vert_horz {
                 // Both paths are the same
                 vec![horz_vert]
+            } else if travel.x < 0 {
+                vec![horz_vert]
             } else {
+                vec![vert_horz]
                 // Both paths are safe
-                vec![horz_vert, vert_horz]
+                // vec![horz_vert, vert_horz]
             };
 
         self.pos = key;
@@ -241,6 +248,13 @@ fn demux_basic() {
     assert_eq!(Vec::from_iter(out.iter().cloned()), vec!["foo".to_string() + "baz", "foo".to_string() + "qux", "bar".to_string() + "baz", "bar".to_string() + "qux"]);
 }
 
+
+fn cull(cmds: HashSet<String>) -> HashSet<String> {
+    cmds.iter().take(1).cloned().collect()
+    // let shortest = cmds.iter().map(|s| s.len()).min().unwrap();
+    // cmds.iter().filter(|s| s.len() == shortest).cloned().collect()
+}
+
 // To control the position on the numberpad, we use the direction pad.
 struct RubeGoldberg {
     pad: NumberPad,
@@ -256,6 +270,8 @@ impl RubeGoldberg {
         }
     }
 
+
+
     fn control_seq(&mut self, code: &str) -> HashSet<String> {
         let mut cmds = HashSet::from_iter(self.pad.control_seq(code).iter().cloned());
         println!("cmds: {}", cmds.len());
@@ -263,7 +279,7 @@ impl RubeGoldberg {
             println!("     {}", cmd);
         }
         for dpad in self.dpads.iter_mut() {
-            cmds = dpad.control_seq(cmds);
+            cmds = cull(dpad.control_seq(cmds));
             println!("cmds: {}", cmds.len());
             for cmd in cmds.iter() {
                 println!("     {}", cmd);
@@ -364,6 +380,13 @@ mod tests {
         let game = parse(SAMPLE);
         let mut mine = RubeGoldberg::new(2);
         assert_eq!(mine.solve(&game), 126384);
+    }
+
+    #[test]
+    fn part2_exampleB() {
+        let mut mine = RubeGoldberg::new(11);
+        let seq = mine.control_seq("5");
+        assert_eq!(seq.len(), "<vA<AA>>^AvAA<^A>A<v<A>>^AvA^A<vA>^A<v<A>^A>AAvA^A<v<A>A>^AAAvA<^A>A".len());
     }
 
     #[test]
