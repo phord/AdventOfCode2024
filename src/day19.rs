@@ -53,6 +53,7 @@ fn solve_recursive(input: &Game) -> usize {
     patterns.iter().map(|p| { let mut memo = HashMap::new(); count_possible(&mut memo, towels, p)}).sum()
 }
 
+// A dynamic programming solution that is O(len(P)*T)
 fn dp(towels: &Towels, pattern: &str) -> usize {
     let mut memo = vec![0usize; pattern.len() + 1];
     memo[pattern.len()] = 1;
@@ -66,10 +67,26 @@ fn dp(towels: &Towels, pattern: &str) -> usize {
     memo[0]
 }
 
+// A dynamic programming solution that is O(len(P)*logT)
+fn dp2(towels: &Towels, pattern: &str) -> usize {
+    let mut memo = vec![0usize; pattern.len() + 1];
+    memo[pattern.len()] = 1;
+    for i in 0..pattern.len() {
+        let j = pattern.len() - i - 1;
+        for k in 1..9 {
+            if j + k <= pattern.len() && memo[j+k] > 0 && towels.contains(&pattern[j..j+k]) {
+                memo[j] += memo[j + k];
+            }
+        }
+    }
+
+    memo[0]
+}
+
 fn solve_dp(input: &Game) -> usize {
     let (towels, patterns) = input;
 
-    patterns.iter().map(|p| dp(towels, p)).sum()
+    patterns.iter().map(|p| dp2(towels, p)).sum()
 }
 
 #[aoc(day19, part1)]
