@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use aoc_runner_derive::{aoc, aoc_generator};
 
@@ -62,15 +62,15 @@ impl NumberPad {
         }
     }
 
-    fn control_seq(&mut self, code: &str) -> HashSet<String> {
+    fn control_seq(&mut self, code: &str) -> Vec<String> {
         let mut seq = Vec::new();
         for c in code.chars() {
             seq.push(self.press_key(c));
         }
-        demux(&seq)
+        seq
     }
 
-    fn press_key(&mut self, key: char) -> Vec<String> {
+    fn press_key(&mut self, key: char) -> String {
         let key = self.locate(key);
         let travel = key - self.pos;
 
@@ -101,20 +101,19 @@ impl NumberPad {
         let seq =
             if self.pos.y == self.panic.y && key.x == self.panic.x {
                 // Danger zone: Move up then left
-                vec![vert_horz]
+                vert_horz
             } else if self.pos.x == self.panic.x && key.y == self.panic.y {
                 // Danger zone: Move right then down
-                vec![horz_vert]
+                horz_vert
             } else if horz_vert == vert_horz {
                 // Both paths are the same
-                vec![horz_vert]
+                horz_vert
             } else if travel.x >= 0 {
-                vec![vert_horz]
+                vert_horz
             } else {
                 // Both paths are safe
-                // vec![horz_vert, vert_horz]
                 // But we only need this one:
-                vec![horz_vert]
+                horz_vert
             };
 
         self.pos = key;
@@ -157,22 +156,30 @@ impl DirPad {
         }
     }
 
-    fn control_seq_one(&mut self, code: &str) -> HashSet<String> {
+    fn control_seq_one(&mut self, code: &str) -> Vec<String> {
         let mut seq = Vec::new();
         for c in code.chars() {
             seq.push(self.press_key(c));
         }
-
-        demux(&seq)
+        seq
     }
 
-    fn control_seq(&mut self, code: HashSet<String>) -> HashSet<String> {
-        code.iter()
-            .flat_map(|c| self.control_seq_one(c))
-            .collect()
+    // Take a desired code sequence and produce the seq needed on the dpad to create it
+    fn control_seq(&mut self, code: Vec<String>, memo: &mut HashMap<String, Vec<String>>) -> Vec<String> {
+        let mut seq = Vec::new();
+        for c in code {
+            if memo.contains_key(&c) {
+                seq.extend(memo[&c].clone());
+                continue;
+            }
+            let s = self.control_seq_one(&c);
+            memo.insert(c, s.clone());
+            seq.extend(s);
+        }
+        seq
     }
 
-    fn press_key(&mut self, key: char) -> Vec<String> {
+    fn press_key(&mut self, key: char) -> String {
         let key = self.locate(key);
         let travel = key - self.pos;
 
@@ -200,18 +207,18 @@ impl DirPad {
         let seq =
             if self.pos.y == self.panic.y && key.x == self.panic.x {
                 // Danger zone: Move down then right
-                vec![vert_horz]
+                vert_horz
             } else if self.pos.x == self.panic.x && key.y == self.panic.y {
                 // Danger zone: Move left then up
-                vec![horz_vert]
+                horz_vert
             } else if horz_vert == vert_horz {
                 // Both paths are the same
-                vec![horz_vert]
+                horz_vert
             } else if travel.x < 0 {
-                vec![horz_vert]
+                horz_vert
             } else {
-                vec![vert_horz]
-                // Both paths are safe
+                vert_horz
+                // Both paths are safe but vert_horz is optimal
                 // vec![horz_vert, vert_horz]
             };
 
@@ -259,6 +266,7 @@ fn cull(cmds: HashSet<String>) -> HashSet<String> {
 struct RubeGoldberg {
     pad: NumberPad,
     dpads: Vec<DirPad>,
+    memo: HashMap<String, Vec<String>>,
 }
 
 impl RubeGoldberg {
@@ -267,23 +275,20 @@ impl RubeGoldberg {
         RubeGoldberg {
             pad: NumberPad::new(),
             dpads,
+            memo: HashMap::new(),
         }
     }
 
 
-
-    fn control_seq(&mut self, code: &str) -> HashSet<String> {
-        let mut cmds = HashSet::from_iter(self.pad.control_seq(code).iter().cloned());
+    fn control_seq(&mut self, code: &str) -> Vec<String> {
+        let mut cmds = self.pad.control_seq(code);
         println!("cmds: {}", cmds.len());
-        for cmd in cmds.iter() {
-            println!("     {}", cmd);
-        }
         for dpad in self.dpads.iter_mut() {
-            cmds = cull(dpad.control_seq(cmds));
+            cmds = dpad.control_seq(cmds, &mut self.memo);
             println!("cmds: {}", cmds.len());
-            for cmd in cmds.iter() {
-                println!("     {}", cmd);
-            }
+            // for cmd in cmds.iter() {
+            //     println!("     {}", cmd);
+            // }
         }
         cmds
     }
@@ -293,7 +298,7 @@ impl RubeGoldberg {
         let mult = code[0..3].parse::<usize>().unwrap();
         let seqs = self.control_seq(code);
 
-        let len = seqs.iter().map(|s| s.len()).min().unwrap();
+        let len = seqs.iter().map(|s| s.len()).sum::<usize>();
         println!("{} * {} = {}    {}", len, mult, mult * len, code);
         mult * len
     }
@@ -332,25 +337,25 @@ mod tests {
     #[test]
     fn part1_example() {
         let mut pad = NumberPad::new();
-        assert_eq!(pad.press_key('A'), ["A"]);
-        assert_eq!(pad.press_key('0'), ["<A"]);
-        assert_eq!(pad.press_key('2'), ["^A"]);
-        assert_eq!(pad.press_key('9'), [ ">^^A", "^^>A"]);
-        assert_eq!(pad.press_key('1'), ["<<vvA", "vv<<A"]);
-        assert_eq!(pad.press_key('A'), [">>vA"]);
-        assert_eq!(pad.control_seq("029A"),
-                HashSet::from_iter(["<A^A>^^AvvvA", "<A^A^^>AvvvA"].iter().map(|s| s.to_string())));
+        assert_eq!(pad.press_key('A'), "A");
+        assert_eq!(pad.press_key('0'), "<A");
+        assert_eq!(pad.press_key('2'), "^A");
+        assert_eq!(pad.press_key('9'),  "^^>A");
+        assert_eq!(pad.press_key('1'), "<<vvA");
+        assert_eq!(pad.press_key('A'), ">>vA");
+        assert_eq!(pad.control_seq("029A"), vec!["<A", "^A", "^^>A", "vvvA"]);
 
 
         let mut dpad = DirPad::new();
-        assert_eq!(dpad.press_key('A'), ["A"]);
-        assert_eq!(dpad.press_key('<'), ["v<<A"]);
-        assert_eq!(dpad.press_key('^'), [">^A"]);
-        assert_eq!(dpad.press_key('v'), ["vA"]);
-        assert_eq!(dpad.press_key('>'), [">A"]);
-        assert_eq!(dpad.press_key('A'), ["^A"]);
+        assert_eq!(dpad.press_key('A'), "A");
+        assert_eq!(dpad.press_key('<'), "v<<A");
+        assert_eq!(dpad.press_key('^'), ">^A");
+        assert_eq!(dpad.press_key('v'), "vA");
+        assert_eq!(dpad.press_key('>'), ">A");
+        assert_eq!(dpad.press_key('A'), "^A");
 
-        assert_eq!(dpad.control_seq(pad.control_seq("029A")).iter().map(|s| s.len()).min().unwrap(),
+        let mut memo = HashMap::new();
+        assert_eq!(dpad.control_seq(pad.control_seq("029A"), &mut memo).iter().map(|s| s.len()).sum::<usize>(),
             "v<<A>>^A<A>AvA<^AA>A<vAAA>^A".len());
     }
     // <vA<AA>>^AvAA<^A>A<v<A>>^AvA^A<vA>^A<v<A>^A>AAvA^A<v<A>A>^AAAvA<^A>A
@@ -362,7 +367,7 @@ mod tests {
     fn part1_exampleB() {
         let mut mine = RubeGoldberg::new(2);
         let seq = mine.control_seq("029A");
-        assert_eq!(seq.len(), "<vA<AA>>^AvAA<^A>A<v<A>>^AvA^A<vA>^A<v<A>^A>AAvA^A<v<A>A>^AAAvA<^A>A".len());
+        assert_eq!(seq.iter().map(|s| s.len()).sum::<usize>(), "<vA<AA>>^AvAA<^A>A<v<A>>^AvA^A<vA>^A<v<A>^A>AAvA^A<v<A>A>^AAAvA<^A>A".len());
     }
 
     #[test]
@@ -384,15 +389,15 @@ mod tests {
 
     #[test]
     fn part2_exampleB() {
-        let mut mine = RubeGoldberg::new(11);
-        let seq = mine.control_seq("5");
+        let mut mine = RubeGoldberg::new(18);
+        let seq = mine.control_seq("3");
         assert_eq!(seq.len(), "<vA<AA>>^AvAA<^A>A<v<A>>^AvA^A<vA>^A<v<A>^A>AAvA^A<v<A>A>^AAAvA<^A>A".len());
     }
 
     #[test]
     fn part2_example() {
         let game = parse(SAMPLE);
-        let mut mine = RubeGoldberg::new(3);
+        let mut mine = RubeGoldberg::new(25);
         assert_eq!(mine.solve(&game), 126384);    }
 }
 
